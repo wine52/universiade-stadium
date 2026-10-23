@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildConcertStage } from './stage.js';
 
 /* ==========================================================================
    深圳大运中心体育场 · 程序化几何
@@ -2388,7 +2389,11 @@ function buildField(materials) {
     g.add(new THREE.LineSegments(netGeo, netMat));
     return g;
   };
-  group.add(makeGoal(1), makeGoal(-1));
+  const goalWest = makeGoal(-1);
+  goalWest.name = 'goal-west';
+  const goalEast = makeGoal(1);
+  goalEast.name = 'goal-east';
+  group.add(goalEast, goalWest);
 
   // LED perimeter boards.
   const boardGeo = new THREE.PlaneGeometry(101 * k, 0.95);
@@ -2403,6 +2408,7 @@ function buildField(materials) {
     const board = new THREE.Mesh(endBoardGeo, materials.boards);
     board.position.set(x, 0.52, 0);
     board.rotation.y = x > 0 ? -HALF_PI : HALF_PI;
+    board.name = x > 0 ? 'board-east' : 'board-west';
     group.add(board);
   }
 
@@ -2426,6 +2432,8 @@ function buildField(materials) {
       group.add(pole);
       const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.65, 0.4), flagMat);
       flag.position.set(x + 0.34, 1.52, z);
+      flag.name = x < 0 ? 'flag-west' : 'flag-east';
+      pole.name = flag.name;
       flag.rotation.y = -HALF_PI;
       group.add(flag);
     }
@@ -2953,6 +2961,13 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
   field.position.y = -PITCH_DROP;
   root.add(field);
 
+  // Concert overlay: hidden until the stage switch is turned on, so the
+  // architectural model stays the default subject.
+  onProgress(0.72, '搭建演唱会舞台');
+  const stage = buildConcertStage({ floorY: -PITCH_DROP });
+  root.add(stage.group);
+  let stageOn = false;
+
   onProgress(0.78, '种植湖岸与城市森林');
   const site = buildSite(materials);
   const lake = site.lake;
@@ -3078,6 +3093,8 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
   const setCrowdSticks = (enabled) => {
     crowdSticks = Boolean(enabled);
     crowd.sticks.visible = crowdSticks;
+    // The in-field audience raises the same sticks, so one switch owns both.
+    stage.setSticks(crowdSticks);
     if (crowdSticks) applyCrowdSticks(performance.now() * 0.001);
   };
 
@@ -3312,6 +3329,7 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
 
   const updateAtmosphere = ({ night = 0.8, lightMode } = {}) => {
     atmosphere.night = night;
+    stage.setNight(night);
     if (lightMode) currentMode = lightMode;
     if (!currentMode) return;
     const base = new THREE.Color(currentMode.color);
@@ -3350,6 +3368,21 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
     materials.roofLines.opacity = enabled ? 0.78 : 0.5;
   };
 
+  /* The concert deck stands on the west end of the pitch, so the goal, the end
+     board and the corner flags underneath it are struck while it is up. */
+  const setStage = (enabled) => {
+    stageOn = Boolean(enabled);
+    stage.setVisible(stageOn);
+    // The pitch is a covered deck with a 1.6 m runway once the stage is up, so
+    // the first-person walker rides at that level instead of inside the timber.
+    walkAreas.field.floor = -PITCH_DROP + (stageOn ? stage.layout.deck + 0.06 : 0.06);
+    field.traverse((object) => {
+      if (object.name === 'goal-west' || object.name === 'board-west' || object.name === 'flag-west') {
+        object.visible = !stageOn;
+      }
+    });
+  };
+
   const update = (elapsed, delta) => {
     lake.uniforms.uTime.value = elapsed;
     if (currentMode?.gala) {
@@ -3361,6 +3394,7 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
     if (allFlicker) flickerAll(elapsed);
     if (crowdSticks) applyCrowdSticks(elapsed);
     if (crowdFlash) applyCrowdFlash(elapsed);
+    if (stageOn) stage.update(elapsed);
   };
 
   const initialColor = new THREE.Color(0xe8fff4);
@@ -3472,6 +3506,8 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
     setCrowdSticks,
     setCrowdFlash,
     setLampBanks,
+    setStage,
+    stage,
     crowd,
     getStrobeLevel,
     setSunlight,
@@ -3483,5 +3519,6 @@ export function createStadium({ detail = 1, onProgress = () => {} } = {}) {
     get crowdSticksMode() { return crowdSticks; },
     get crowdFlashMode() { return crowdFlash; },
     get lampBanksMode() { return lampBanks; },
+    get stageMode() { return stageOn; },
   };
 }

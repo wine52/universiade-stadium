@@ -56,6 +56,7 @@ const el = {
   flickerButton: document.getElementById('flickerButton'),
   sticksButton: document.getElementById('sticksButton'),
   flashButton: document.getElementById('flashButton'),
+  stageButton: document.getElementById('stageButton'),
   lightsOffButton: document.getElementById('lightsOffButton'),
   dockStructure: document.getElementById('dockStructure'),
   dockRotate: document.getElementById('dockRotate'),
@@ -110,6 +111,7 @@ const state = {
   lampBanks: params.get('lamps') !== '0',
   sticks: params.get('sticks') === '1',
   flash: params.get('flash') === '1',
+  stage: params.get('stage') === '1',
   lightsOff: params.get('lights') === '0',
   archiveOpen: false,
   archiveTab: 'drawings',
@@ -131,6 +133,7 @@ const viewTitles = {
   stands: '看台 · 三层银灰座席的椭圆',
   roof: '屋盖 · 单层折面空间网格',
   free: '自由 · 任意高度绕行晶体',
+  stage: '舞台 · 行李箱、延伸台与 d&b 线阵列',
 };
 
 let renderer;
@@ -940,6 +943,8 @@ function setViewInstant(viewName) {
 function flyTo(viewName, duration = 1.35, options = {}) {
   const view = VIEWS[viewName];
   if (!view || !camera || state.archiveOpen) return;
+  // The stage camera would otherwise fly to an empty pitch.
+  if (viewName === 'stage' && !state.stage) setStage(true, false);
   const target = new THREE.Vector3(...view.target);
   const position = new THREE.Vector3(...view.position);
   viewTween = {
@@ -1511,6 +1516,24 @@ function setStructure(enabled, announce = true) {
   if (announce) showToast(enabled ? '结构透视 · 折面网格已显露' : '结构透视 · 恢复晶体表皮');
 }
 
+/* Concert stage: a separate overlay module, hidden by default. It carries its own
+   animations (scrolling screens, swaying beams, the shuttling train) and its own
+   light rig, so nothing in the architecture has to know about it. */
+function setStage(enabled, announce = true) {
+  state.stage = enabled;
+  stadium?.setStage(enabled);
+  if (el.stageButton) el.stageButton.setAttribute('aria-checked', String(enabled));
+  el.stageButton?.classList.toggle('is-active', enabled);
+  document.body.classList.toggle('concert-on', enabled);
+  if (announce) {
+    showToast(
+      enabled
+        ? '演唱会舞台 · 行李箱 / 延伸台 / d&b 线阵列已就位，按 8 回到舞台机位'
+        : '演唱会舞台已收起 · 内场恢复球门与跑道'
+    );
+  }
+}
+
 function setAutoRotate(enabled, announce = true) {
   state.autoRotate = enabled;
   [el.autoRotateButton, el.dockRotate].forEach((button) => {
@@ -1707,6 +1730,7 @@ function bindUI() {
   el.flickerButton?.addEventListener('click', () => setFlicker(!state.flicker));
   el.sticksButton?.addEventListener('click', () => setSticks(!state.sticks));
   el.flashButton?.addEventListener('click', () => setFlash(!state.flash));
+  el.stageButton?.addEventListener('click', () => setStage(!state.stage));
   el.lightsOffButton?.addEventListener('click', () => setLightsOff(!state.lightsOff));
   el.fullscreenButton?.addEventListener('click', toggleFullscreen);
   el.dismissHint?.addEventListener('click', dismissMouseHint);
@@ -1730,7 +1754,7 @@ function bindUI() {
       setCursorFree(!walk.cursorFree);
       return;
     }
-    const viewKeys = ['shore', 'orbit', 'elevation', 'field', 'stands', 'roof', 'free'];
+    const viewKeys = ['shore', 'orbit', 'elevation', 'field', 'stands', 'roof', 'free', 'stage'];
     const isWalkKey = (name) => name === 'field' || name === 'stands' || name === 'free';
 
     if (walk.active) {
@@ -1738,7 +1762,7 @@ function bindUI() {
         leaveWalk();
         return;
       }
-      if (/^[1-7]$/.test(event.key)) {
+      if (/^[1-8]$/.test(event.key)) {
         const next = viewKeys[Number(event.key) - 1];
         leaveWalk({ fly: false });
         if (isWalkKey(next)) enterWalk(next);
@@ -1770,7 +1794,7 @@ function bindUI() {
       return;
     }
     if (state.archiveOpen) return;
-    if (/^[1-7]$/.test(event.key)) {
+    if (/^[1-8]$/.test(event.key)) {
       const next = viewKeys[Number(event.key) - 1];
       if (next === 'stands') {
         setTierPicker(true);
@@ -1799,6 +1823,8 @@ function bindUI() {
       setSticks(!state.sticks);
     } else if (event.key.toLowerCase() === 'b') {
       setFlash(!state.flash);
+    } else if (event.key.toLowerCase() === 'x') {
+      setStage(!state.stage);
     } else if (event.key.toLowerCase() === 'f') {
       toggleFullscreen();
     }
@@ -1934,6 +1960,7 @@ async function init() {
     setFlicker(state.flicker, false);
     setSticks(state.sticks, false);
     setFlash(state.flash, false);
+    setStage(state.stage, false);
     if (state.lightsOff) {
       el.lightsOffButton?.setAttribute('aria-checked', 'true');
       el.lightsOffButton?.classList.add('is-active');
