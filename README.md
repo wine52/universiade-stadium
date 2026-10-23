@@ -4,7 +4,7 @@
 
 > 截图未随仓库提供，克隆后本地打开即可查看全部视角、灯效与观众模式。
 
-**在线预览：<https://772139315.github.io/universiade-stadium/>**
+**在线预览：<https://wine52.github.io/universiade-stadium/>**
 
 本仓库 fork 自 [ZhiyanZeng/universiade-stadium](https://github.com/ZhiyanZeng/universiade-stadium)，在其建筑模型基础上加入了张杰深圳站演唱会舞台。
 
